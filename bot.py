@@ -1,7 +1,7 @@
 import os, random, logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import PollType
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
 
 TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
@@ -36,11 +36,24 @@ def after_keyboard(code):
         [InlineKeyboardButton("👋 لا، إنهاء", callback_data="finish")]
     ])
 
+WELCOME_TEXT = (
+    "🌷 أهلًا بطالبتي المجتهدة\n\n"
+    "سعيدة بوصولك إلى بنك أسئلة المهارات الرقمية 💻✨\n\n"
+    "أحب أشوفك تجربين وتختبرين معلوماتك بنفسك 💚\n"
+    "لا تخافين من الخطأ، فكل محاولة تساعدك تتعلمين أكثر وتتقنين مهاراتك.\n\n"
+    "اختاري صفك الدراسي وابدئي المراجعة 🌟\n\n"
+    "معلمتكِ رحاب الزهراني"
+)
+
+async def show_home(message):
+    await message.reply_text(WELCOME_TEXT, reply_markup=grade_keyboard())
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text=("🌷 مرحبًا بكِ في بنك أسئلة المهارات الرقمية\n\n"
-          "أنا هنا لمساعدتكِ على مراجعة دروسك وقياس مدى إتقانك ✨\n\n"
-          "🎓 لنبدأ معًا\nاختاري صفك الدراسي:")
-    await update.effective_message.reply_text(text, reply_markup=grade_keyboard())
+    await show_home(update.effective_message)
+
+async def arabic_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # أي رسالة نصية من الطالبة تفتح لها واجهة المراجعة مباشرة، فلا تحتاج إلى معرفة الأوامر.
+    await show_home(update.effective_message)
 
 async def ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     m=update.effective_message
@@ -132,6 +145,8 @@ def main():
     app.add_handler(CommandHandler("start",start))
     app.add_handler(CommandHandler("id",ids))
     app.add_handler(CallbackQueryHandler(callback))
+    # مداخل عربية سهلة: مراجعة، اسألني، بنك الأسئلة، ابدأ، أو أي رسالة عادية.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, arabic_entry))
     print("DigitalSkillsRahabBot comprehensive navigation is running...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 

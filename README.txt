@@ -1,12 +1,9 @@
-DigitalSkillsRahabBot
-بنك أسئلة المهارات الرقمية - رابع ابتدائي
-إعداد المعلمة رحاب الزهراني
+Digital Skills Rahab Bot — Complete Question Bank
 
-التشغيل:
-1) ارفعي الملفات إلى GitHub أو خدمة استضافة Python مثل Railway.
-2) أضيفي متغيرًا سريًا باسم BOT_TOKEN والصقي فيه Token البوت من BotFather.
-3) شغلي المشروع.
-4) داخل موضوع بنك الأسئلة في Telegram اكتبي /start
-5) استخدمي /lessons لعرض الدروس.
+Six grades: 4th–6th elementary and 1st–3rd intermediate.
+Curriculum structure and question coverage are based on the uploaded 1448/2026 Digital Skills textbooks.
+Native Telegram quiz polls, grade → unit → lesson navigation, immediate correction, and end message.
+Existing authored Grade 4 bank is preserved; every listed lesson has a question bank.
 
-لا تضعي التوكن داخل bot.py ولا تشاركيه مع أي شخص.
+Railway variable required: BOT_TOKEN
+Start command: python bot.py

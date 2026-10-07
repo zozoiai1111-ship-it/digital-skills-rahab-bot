@@ -50,14 +50,31 @@ def grade_keyboard():
         [InlineKeyboardButton("ثالث متوسط", callback_data="grade|3m"), InlineKeyboardButton("ثاني متوسط", callback_data="grade|2m")],
     ])
 
-def lesson_keyboard(code):
+def unit_keyboard(code):
     _, units = CURRICULUM[code]
-    rows=[]
-    for ui,(unit,lessons) in enumerate(units):
-        rows.append([InlineKeyboardButton(f"📘 {unit}", callback_data="noop")])
-        for li,lesson in enumerate(lessons):
-            rows.append([InlineKeyboardButton(f"🔹 {lesson}", callback_data=f"lesson|{code}|{ui}|{li}")])
-    rows.append([InlineKeyboardButton("↩️ تغيير الصف", callback_data="home")])
+    rows = []
+    # Telegram يعكس الاتجاه بصريًا مع العربية؛ نعكس كل زوج ليظهر:
+    # الوحدة الأولى | الوحدة الثانية
+    for i in range(0, len(units), 2):
+        pair = []
+        for ui in range(min(i + 1, len(units) - 1), i - 1, -1):
+            pair.append(InlineKeyboardButton(
+                f"📘 {units[ui][0].split(':',1)[0]}",
+                callback_data=f"unit|{code}|{ui}"
+            ))
+        rows.append(pair)
+    rows.append([InlineKeyboardButton("⭐ اختبر معلوماتك", callback_data=f"selftest|{code}")])
+    if code and False:  # لا يظهر زر تغيير الصف داخل موضوع الصف
+        rows.append([InlineKeyboardButton("↩️ تغيير الصف", callback_data="home")])
+    return InlineKeyboardMarkup(rows)
+
+def lessons_in_unit_keyboard(code, ui):
+    unit, lessons = CURRICULUM[code][1][ui]
+    rows = [
+        [InlineKeyboardButton(f"🔹 {lesson}", callback_data=f"lesson|{code}|{ui}|{li}")]
+        for li, lesson in enumerate(lessons)
+    ]
+    rows.append([InlineKeyboardButton("↩️ الوحدات", callback_data=f"units|{code}")])
     return InlineKeyboardMarkup(rows)
 
 def after_keyboard(code):
@@ -90,10 +107,10 @@ async def show_home(update):
         "أحب أشوفك تجربين وتختبرين معلوماتك بنفسك 💚\n"
         "لا تخافين من الخطأ، فكل محاولة تساعدك تتعلمين أكثر وتتقنين مهاراتك.\n\n"
         f"🌟 أنتِ الآن في بنك أسئلة الصف {grade}\n"
-        "اختاري الدرس الذي ترغبين في مراجعته 👇\n\n"
+        "اختاري الوحدة التي ترغبين في مراجعتها 👇\n\n"
         "معلمتكِ رحاب الزهراني"
     )
-    await message.reply_text(text, reply_markup=lesson_keyboard(loc))
+    await message.reply_text(text, reply_markup=unit_keyboard(loc))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_home(update)
@@ -110,53 +127,88 @@ async def ids(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await m.reply_text(f"chat_id: {update.effective_chat.id}\nmessage_thread_id: {getattr(m,'message_thread_id',None)}")
 
 async def callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q=update.callback_query
-    await q.answer()
-    data=q.data
+    q = update.callback_query
     loc = allowed_callback_grade(update)
     if loc is None:
-        return  # لا استجابة خارج موضوع بنك الأسئلة
-    if data=="noop":
+        return  # صامت تمامًا خارج موضوع بنك الأسئلة
+    await q.answer()
+    data = q.data
+
+    if data == "noop":
         return
-    if data=="home":
+
+    if data == "home":
         if loc == "private":
             await q.edit_message_text("🎓 اختاري صفك الدراسي:", reply_markup=grade_keyboard())
         else:
-            grade=CURRICULUM[loc][0]
-            await q.edit_message_text(f"📚 اختاري درسًا من {grade}:", reply_markup=lesson_keyboard(loc))
+            await q.edit_message_text("📚 اختاري الوحدة:", reply_markup=unit_keyboard(loc))
         return
+
     if data.startswith("grade|"):
-        code=data.split("|",1)[1]
+        code = data.split("|", 1)[1]
         if loc != "private" and code != loc:
             return
-        grade=CURRICULUM[code][0]
-        context.user_data['grade']=code
-        await q.edit_message_text(f"🌟 أهلًا بطالبة الصف {grade}\n\nاختاري الدرس الذي ترغبين في مراجعته:", reply_markup=lesson_keyboard(code))
+        grade = CURRICULUM[code][0]
+        await q.edit_message_text(
+            f"🌟 أهلًا بطالبة الصف {grade}\n\nاختاري الوحدة التي ترغبين في مراجعتها:",
+            reply_markup=unit_keyboard(code)
+        )
         return
+
+    if data.startswith("units|"):
+        code = data.split("|", 1)[1]
+        if loc != "private" and code != loc:
+            return
+        await q.edit_message_text("📚 اختاري الوحدة:", reply_markup=unit_keyboard(code))
+        return
+
+    if data.startswith("unit|"):
+        _, code, ui = data.split("|")
+        if loc != "private" and code != loc:
+            return
+        ui = int(ui)
+        unit = CURRICULUM[code][1][ui][0]
+        await q.edit_message_text(
+            f"📘 {unit}\n\nاختاري الدرس الذي ترغبين في مراجعته 👇",
+            reply_markup=lessons_in_unit_keyboard(code, ui)
+        )
+        return
+
     if data.startswith("again|"):
-        code=data.split("|",1)[1]
+        code = data.split("|", 1)[1]
         if loc != "private" and code != loc:
             return
-        grade=CURRICULUM[code][0]
-        await q.edit_message_text(f"📚 رائع! اختاري درسًا آخر من {grade}:", reply_markup=lesson_keyboard(code))
+        await q.edit_message_text("📚 اختاري الوحدة:", reply_markup=unit_keyboard(code))
         return
-    if data=="finish":
+
+    if data == "finish":
         await q.edit_message_text(
             "🌟 أحسنتِ يا بطلة\n"
-            "شكرًا لمشاركتك واجتهادك اليوم\n\n"
-            "💚 أنا فخورة فيكِ وفي إنجازكِ\n"
+            "شكرًا لمشاركتك واجتهادك اليوم\n"
+            "أنا فخورة فيكِ وفي إنجازكِ 💚\n"
             "استمري بهذا التميز ونلتقي في مراجعة جديدة بإذن الله 🌷\n\n"
             "معلمتكِ رحاب الزهراني"
         )
         return
-    if data.startswith("lesson|"):
-        _,code,ui,li=data.split("|")
+
+    if data.startswith("selftest|"):
+        code = data.split("|", 1)[1]
         if loc != "private" and code != loc:
             return
-        ui,li=int(ui),int(li)
-        grade,units=CURRICULUM[code]
-        unit,lessons=units[ui]
-        lesson=lessons[li]
+        await q.edit_message_text(
+            "⭐ اختبر معلوماتك\n\n"
+            "سيُعرض هنا الاختبار الشامل المخصص للصف من قسم «اختبر نفسك» في الكتاب."
+        )
+        return
+
+    if data.startswith("lesson|"):
+        _, code, ui, li = data.split("|")
+        if loc != "private" and code != loc:
+            return
+        ui, li = int(ui), int(li)
+        grade, units = CURRICULUM[code]
+        unit, lessons = units[ui]
+        lesson = lessons[li]
         await q.edit_message_text(
             f"🌟 اختيار جميل\n\n📘 {unit}\n📖 درس: {lesson}\n\n"
             "اقرئي السؤال جيدًا واختاري الإجابة الصحيحة. بالتوفيق 💚"
